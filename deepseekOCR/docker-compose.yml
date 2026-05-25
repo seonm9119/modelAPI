@@ -1,0 +1,54 @@
+services:
+  deepseek-ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: pytorch/pytorch:2.6.0-cuda11.8-cudnn9-devel
+        TRANSFORMERS_VERSION: 4.46.3
+        TOKENIZERS_VERSION: 0.20.3
+        FLASH_ATTN_VERSION: 2.7.3
+        INSTALL_FLASH_ATTN: "1"
+    image: deepseek-ocr2:latest
+    container_name: deepseek-ocr
+    ports:
+      - "127.0.0.1:8002:8002"
+    volumes:
+      - ./pretrained:/models/pretrained
+      - ./outputs:/models/outputs
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - HF_HOME=/models/pretrained
+      - DEEPSEEK_OCR_MODEL_CACHE_DIR=/models/pretrained
+      - DEEPSEEK_OCR_OUTPUT_DIR=/models/outputs
+      - DEEPSEEK_OCR_MODEL_NAME=deepseek-ai/DeepSeek-OCR-2
+      - DEEPSEEK_OCR_DEVICE=cuda
+      - DEEPSEEK_OCR_TORCH_DTYPE=bfloat16
+      - DEEPSEEK_OCR_ATTN_IMPLEMENTATION=flash_attention_2
+      - DEEPSEEK_OCR_BASE_SIZE=1024
+      - DEEPSEEK_OCR_IMAGE_SIZE=768
+      - DEEPSEEK_OCR_CROP_MODE=true
+      - DEEPSEEK_OCR_MAX_NEW_TOKENS=8192
+      - DEEPSEEK_OCR_USE_CACHE=true
+      - DEEPSEEK_OCR_RELEASE_AFTER_REQUEST=true
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    shm_size: "16gb"
+    networks:
+      - model-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+    # To skip flash-attn during image build, override INSTALL_FLASH_ATTN to "0"
+    # and set DEEPSEEK_OCR_ATTN_IMPLEMENTATION to an empty string or another
+    # implementation supported by the installed transformers stack.
+
+networks:
+  model-network:
+    external: true

@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+
+# Runtime outputs and downloaded model artifacts
+**/outputs/
+**/pretrained/*
+!**/pretrained/.gitkeep

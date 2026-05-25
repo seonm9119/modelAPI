@@ -1,0 +1,40 @@
+services:
+  paddle-ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+        PADDLE_PACKAGE: paddlepaddle-gpu==3.3.1
+        PADDLE_INDEX_URL: https://www.paddlepaddle.org.cn/packages/stable/cu118/
+        PADDLEOCR_VERSION: 3.5.0
+    image: pp-ocrv5:latest
+    container_name: paddle-ocr
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ./pretrained:/models/pretrained
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - model-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+    # CPU fallback example for a later pass:
+    # build:
+    #   args:
+    #     BASE_IMAGE: python:3.10-slim
+    #     PADDLE_PACKAGE: paddlepaddle
+    #     PADDLE_INDEX_URL: ""
+
+networks:
+  model-network:
+    external: true
