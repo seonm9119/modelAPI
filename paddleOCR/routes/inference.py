@@ -1,14 +1,26 @@
 import os
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from engine.paddle_ocr_v5 import inference, release_ocr_model
 from routes.common import convert_byte_to_img
 
 router = APIRouter()
 
 
+def summarize_inference_error(error):
+    error_text = str(error)
+    if "Out of memory" in error_text or "ResourceExhausted" in error_text:
+        return 507, "Paddle OCR GPU out of memory"
+
+    if not error_text:
+        return 500, "Paddle OCR inference failed"
+
+    return 500, error_text[:1000]
+
+
 # Request format:
 # {
 #     "byte_img": "base64_encoded_image_bytes",
+#     "release_after_inference": true,
 #     "predict_options": {
 #         "use_doc_orientation_classify": false,
 #         "use_doc_unwarping": false,
@@ -27,13 +39,20 @@ router = APIRouter()
 async def run_paddle_ocr_inference(request: Request):
     request_data = await request.json()
     predict_options = request_data.get("predict_options", {})
+    release_after_inference = request_data.get("release_after_inference", True)
     image_input = convert_byte_to_img(request_data.get("byte_img"))
+    inference_failed = False
 
     try:
         ocr_results = inference(image_input, predict_options)
         return [ocr_result.json for ocr_result in ocr_results]
+    except Exception as error:
+        inference_failed = True
+        status_code, detail = summarize_inference_error(error)
+        raise HTTPException(status_code=status_code, detail=detail) from None
     finally:
-        release_ocr_model()
+        if release_after_inference or inference_failed:
+            release_ocr_model()
         if os.path.exists(image_input):
             os.remove(image_input)
 

@@ -17,7 +17,7 @@ def convert_byte_to_img(byte_img, suffix=".png"):
     try:
         with Image.open(BytesIO(image_bytes)) as image:
             image.verify()
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
         raise HTTPException(status_code=400, detail="byte_img must be a valid image")
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as image_file:
