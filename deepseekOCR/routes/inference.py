@@ -7,9 +7,26 @@ from routes.common import convert_byte_to_img
 router = APIRouter()
 
 
+def summarize_inference_error(error):
+    error_text = str(error)
+    lower_error_text = error_text.lower()
+    if (
+        "out of memory" in lower_error_text
+        or "resourceexhausted" in lower_error_text
+        or "cudnn_status_alloc_failed" in lower_error_text
+    ):
+        return 507, "DeepSeek OCR GPU out of memory"
+
+    if not error_text:
+        return 500, "DeepSeek OCR inference failed"
+
+    return 500, error_text[:1000]
+
+
 # Request format:
 # {
 #     "byte_img": "base64_encoded_image_bytes",
+#     "release_after_inference": true,
 #     "predict_options": {
 #         # Optional. DeepSeek-OCR-2 prompt controls the output style.
 #         # Use the markdown prompt for document parsing, or "Free OCR." for plain OCR.
@@ -35,14 +52,18 @@ router = APIRouter()
 async def run_deepseek_ocr_inference(request: Request):
     request_data = await request.json()
     predict_options = request_data.get("predict_options", {})
+    release_after_inference = request_data.get("release_after_inference", DEEPSEEK_OCR_RELEASE_AFTER_REQUEST)
     image_input = convert_byte_to_img(request_data.get("byte_img"))
+    inference_failed = False
 
     try:
         return inference(image_input, predict_options)
-    except RuntimeError as runtime_error:
-        raise HTTPException(status_code=500, detail=str(runtime_error))
+    except Exception as error:
+        inference_failed = True
+        status_code, detail = summarize_inference_error(error)
+        raise HTTPException(status_code=status_code, detail=detail) from None
     finally:
-        if DEEPSEEK_OCR_RELEASE_AFTER_REQUEST:
+        if release_after_inference or inference_failed:
             release_ocr_model()
         if os.path.exists(image_input):
             os.remove(image_input)
